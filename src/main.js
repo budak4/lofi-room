@@ -1,5 +1,7 @@
 import './style.css';
-import { LiquidGlassEngine, LiquidButton, LiquidTabBar, LiquidMorph, Spring } from 'quick-liquid';
+import { LiquidTabBar, LiquidMorph } from 'quick-liquid';
+import { tagCapabilities, REDUCED_MOTION, IS_TOUCH } from './env.js';
+import { GlassManager, liquidButtons } from './glass.js';
 import { LofiAudio, TRACKS } from './audio.js';
 import { Pomodoro } from './timer.js';
 import { TodoStore } from './todo.js';
@@ -7,53 +9,21 @@ import { TodoStore } from './todo.js';
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
-// ============ QUICK-LIQUID GLASS INIT ============
-const glasses = [];
-$$('.glass').forEach((el) => {
-  try {
-    const engine = new LiquidGlassEngine(el, {
-      material: 'regular',
-      blur: 14,
-      refractionStrength: 22,
-      chromaticAberration: 0.2,
-      dynamicLighting: true,
-      parallax: true,
-      quality: 'high',
-      elevation: 2,
-    });
-    glasses.push({ el, engine });
-  } catch (err) { el.style.background = 'rgba(28,26,64,0.72)'; glasses.push({ el, engine: null }); }
-});
+// ============ ENV / CAPABILITIES ============
+tagCapabilities();
 
-// Buttons get liquid press + min glass coat
-const buttonEngines = [];
-$$('.btn, .hud-chip, .preset-btn, .mode-btn, .dock-item').forEach((el) => {
-  try {
-    const lb = new LiquidButton(el);
-    buttonEngines.push(lb);
-  } catch {}
-});
+// Split retry loop: pull main in several passes while room stays calm.
+const haptic = (p = 15) => { try { navigator.vibrate?.(p); } catch {} };
 
-// Spotlight mouse lighting pulses on glass panels
-glasses.forEach(({ el, engine }) => {
-  if (!engine) return;
-  const move = (e) => {
-    const r = el.getBoundingClientRect();
-    const lit = e.clientX > r.left && e.clientX < r.right && e.clientY > r.top && e.clientY < r.bottom;
-    if (lit && engine.updateConfig) {
-      try { engine.updateConfig({ lightAngle: 20 }); } catch {}
-    }
-  };
-  el.addEventListener('pointermove', move);
-});
+// ============ QUICK-LIQUID GLASS (lazy + device-tuned) ============
+const glass = new GlassManager();
+glass.mountPersistent('.topbar, .dock, .minimini');
+liquidButtons('.btn, .hud-chip, .preset-btn, .mode-btn, .dock-item, .hotspot');
 
 // ============ DOCK / VIEWS ============
 const dock = $('#dock');
 const dockItems = $$('.dock-item');
-const panelEls = {};
-
 let activeView = 'home';
-
 let tabBar = null;
 try {
   tabBar = new LiquidTabBar(dock, dockItems, { spring: 'snappy' });
@@ -70,6 +40,8 @@ function activate(view) {
   $$('.panel').forEach((p) => p.classList.remove('active'));
   const target = $(`.panel[data-panel="${view}"]`);
   if (target) target.classList.add('active');
+  // only the visible panel carries a live glass engine
+  glass.setActivePanel(target);
   dockItems.forEach((it) => it.classList.toggle('active', it.dataset.view === view));
   const idx = dockItems.findIndex((it) => it.dataset.view === view);
   if (tabBar) tabBar.select(Math.max(0, idx));
@@ -86,6 +58,7 @@ function applyHash() {
 
 dockItems.forEach((it) => {
   it.addEventListener('click', () => {
+    haptic();
     activate(it.dataset.view);
     history.replaceState(null, '', '#' + it.dataset.view);
   });
@@ -94,11 +67,16 @@ dockItems.forEach((it) => {
 window.addEventListener('hashchange', applyHash);
 
 // ============ CLOCK / GREETING ============
+let lastClockText = '';
 function tickClock() {
+  if (document.hidden) return;
   const now = new Date();
   const hh = String(now.getHours()).padStart(2, '0');
   const mm = String(now.getMinutes()).padStart(2, '0');
-  $('#clock').textContent = `${hh}:${mm}`;
+  const clockText = `${hh}:${mm}`;
+  if (clockText === lastClockText) return;
+  lastClockText = clockText;
+  $('#clock').textContent = clockText;
   const days = ['Ahd', 'Isn', 'Sel', 'Rab', 'Kha', 'Jum', 'Sab'];
   const months = ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
   $('#date').textContent = `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]}`;
@@ -136,21 +114,19 @@ function syncPlayer() {
   $('#miniArtist').textContent = t.artist;
   $('#nowPlayingCard').textContent = t.title;
   $('#btnPlay').textContent = audio.playing ? '⏸' : '▶';
-  $('#btnPause').textContent = '⏸';
   $('#miniToggle').textContent = audio.playing ? '⏸' : '▶';
   document.body.classList.toggle('playing', audio.playing);
   renderTracks();
 }
 
-$('#btnPlay').addEventListener('click', () => { audio.play(); syncPlayer(); });
-$('#btnPause').addEventListener('click', () => { audio.pause(); syncPlayer(); });
+$('#btnPlay').addEventListener('click', () => { haptic(); audio.play(); syncPlayer(); });
 $('#btnNext').addEventListener('click', () => { audio.next(); syncPlayer(); });
 $('#btnPrev').addEventListener('click', () => { audio.prev(); syncPlayer(); });
 $('#miniToggle').addEventListener('click', () => { audio.toggle(); syncPlayer(); });
 $('#vol').addEventListener('input', (e) => audio.setVolume(e.target.value / 100));
 
-const radioHotspot = $('[data-hotspot="radio"]');
-radioHotspot.addEventListener('click', () => {
+$('#radioHotspot').addEventListener('click', () => {
+  haptic();
   audio.toggle();
   syncPlayer();
   activate('playlist');
@@ -175,6 +151,7 @@ timer.onOnly = (ev) => { toast(ev.includes('break') ? 'Sesi selesai — ambil re
 timer.autoResume(() => true);
 
 $('#btnStart').addEventListener('click', () => {
+  haptic();
   timer.toggle();
   $('#btnStart').textContent = timer.running ? '⏸ Jeda' : '▶ Mula';
 });
@@ -235,10 +212,10 @@ const hotspotSpecs = [
 $$('.hotspot').forEach((btn) => {
   smallMorph(btn);
   btn.addEventListener('click', (e) => {
-    const k = btn.dataset.hotspot;
+    haptic();
     spawnRipple(e.clientX, e.clientY);
     pulse(btn);
-    applyHotspot(k);
+    applyHotspot(btn.dataset.hotspot);
   });
 });
 
@@ -269,7 +246,14 @@ function toggleWeather(w) {
 }
 
 // ============ RIPPLES ============
+function makeRippleLayer() {
+  const d = document.createElement('div');
+  d.className = 'ripple-layer';
+  document.body.appendChild(d);
+  return d;
+}
 function spawnRipple(x, y) {
+  if (REDUCED_MOTION) return;
   const layer = (document.querySelector('.ripple-layer') || makeRippleLayer());
   const r = document.createElement('div');
   r.className = 'ripple';
@@ -279,16 +263,11 @@ function spawnRipple(x, y) {
   layer.appendChild(r);
   setTimeout(() => r.remove(), dur * 1000 + 300);
 }
-function makeRippleLayer() {
-  const d = document.createElement('div');
-  d.className = 'ripple-layer';
-  document.body.appendChild(d);
-  return d;
-}
 
 // ============ LIQUID MOTION ============
 const morphs = [];
 function smallMorph(el) {
+  if (REDUCED_MOTION) return null;
   try {
     const m = new LiquidMorph(el, { spring: 'bouncy' });
     morphs.push(m);
@@ -296,12 +275,15 @@ function smallMorph(el) {
   } catch { return null; }
 }
 function pulse(el) {
-  el.animate([
-    { transform: 'scale(1)' },
-    { transform: 'scale(0.86) rotate(-6deg)' },
-    { transform: 'scale(1.06)' },
-    { transform: 'scale(1)' },
-  ], { duration: 480, easing: 'cubic-bezier(.2,1.2,.4,1)' });
+  if (REDUCED_MOTION) return;
+  try {
+    el.animate([
+      { transform: 'scale(1)' },
+      { transform: 'scale(0.86) rotate(-6deg)' },
+      { transform: 'scale(1.06)' },
+      { transform: 'scale(1)' },
+    ], { duration: 480, easing: 'cubic-bezier(.2,1.2,.4,1)' });
+  } catch {}
   const m = morphs.find((mm) => mm.el === el);
   if (m) m.jiggle?.(0.25);
 }
@@ -321,7 +303,6 @@ function pickQuote() {
 function refreshHome() {
   const now = new Date();
   const h = now.getHours();
-  // pretend focus accumulates during day
   const focusToday = Math.round((Math.min(Math.max(h, 6), 23) - 6) * 4.2);
   $('#focusToday').textContent = focusToday + 'm';
   $('#todoPending').textContent = todo.pending();
@@ -334,6 +315,7 @@ refreshHome();
 // ============ AMBIENT CHIPS ============
 $('#chipWeather').addEventListener('click', cycleWeather);
 $('#chipMood').addEventListener('click', () => {
+  haptic();
   document.body.classList.toggle('lamp-on');
   toast(document.body.classList.contains('lamp-on') ? 'warna hangat diaktifkan' : 'warna sejuk kembali');
 });
