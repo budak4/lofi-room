@@ -2,6 +2,7 @@ import './style.css';
 import { LiquidTabBar, LiquidMorph } from 'quick-liquid';
 import { tagCapabilities, REDUCED_MOTION, IS_TOUCH } from './env.js';
 import { GlassManager, liquidButtons } from './glass.js';
+import { assistant } from './assistant.js';
 import { LofiAudio, TRACKS } from './audio.js';
 import { Pomodoro } from './timer.js';
 import { TodoStore } from './todo.js';
@@ -12,8 +13,36 @@ const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 // ============ ENV / CAPABILITIES ============
 tagCapabilities();
 
-// Split retry loop: pull main in several passes while room stays calm.
 const haptic = (p = 15) => { try { navigator.vibrate?.(p); } catch {} };
+
+// ============ HOTSPOT ANCHOR ALIGNMENT ============
+// Hotspots are anchored to invisible SVG markers (same transform as the room),
+// so they sit exactly on the object for every viewport/aspect-ratio.
+function alignHotspots() {
+  document.documentElement.classList.add('hotspots-js');
+  const vw = window.innerWidth; const vh = window.innerHeight;
+  $$('.hotspot[data-hotspot]').forEach((btn) => {
+    const marker = document.getElementById('mk-' + btn.dataset.hotspot);
+    if (!marker) return;
+    const r = marker.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    if (cx < -60 || cy < -60 || cx > vw + 60 || cy > vh + 60) {
+      btn.style.opacity = '0';
+      btn.style.pointerEvents = 'none';
+      return;
+    }
+    btn.style.opacity = '1';
+    btn.style.pointerEvents = '';
+    btn.style.left = Math.round(cx - btn.offsetWidth / 2) + 'px';
+    btn.style.top = Math.round(cy - btn.offsetHeight / 2) + 'px';
+  });
+}
+let alignT = null;
+function alignDebounced() { clearTimeout(alignT); alignT = setTimeout(alignHotspots, 120); }
+window.addEventListener('resize', alignDebounced);
+window.addEventListener('orientationchange', alignDebounced);
+try { document.fonts?.ready?.then(alignDebounced); } catch {}
 
 // ============ QUICK-LIQUID GLASS (lazy + device-tuned) ============
 const glass = new GlassManager();
@@ -52,7 +81,7 @@ function activate(view) {
 
 function applyHash() {
   const h = (location.hash || '#home').replace('#', '');
-  const views = ['home', 'pomodoro', 'playlist', 'todo'];
+  const views = ['home', 'pomodoro', 'playlist', 'ai', 'todo'];
   activate(views.includes(h) ? h : 'home');
 }
 
@@ -201,6 +230,77 @@ $('#todoForm').addEventListener('submit', (e) => {
   refreshHome();
 });
 
+// ============ AI ASSISTANT ============
+const aiLog = $('#aiLog');
+const aiInput = $('#aiInput');
+
+function aiAppend(role, html) {
+  const m = document.createElement('div');
+  m.className = 'ai-msg ' + (role === 'user' ? 'ai-user' : 'ai-bot');
+  m.innerHTML = `<span class="ai-ava">${role === 'user' ? '😊' : '🤖'}</span><div class="ai-bubble">${html}</div>`;
+  aiLog.appendChild(m);
+  aiLog.scrollTop = aiLog.scrollHeight;
+  return m;
+}
+function aiSay(role, text) {
+  aiAppend(role, text.replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c])));
+}
+
+function buildAiCtx() {
+  const items = todo.all();
+  return {
+    lampOn: document.body.classList.contains('lamp-on'),
+    weather: [...document.body.classList].find((c) => c.startsWith('weather')) || 'clear',
+    playing: audio.playing,
+    trackTitle: audio.track.title,
+    todoCount: items.length,
+    todoDone: items.filter((i) => i.done).length,
+  };
+}
+
+function runAiActions(actions = []) {
+  actions.forEach((a) => {
+    switch (a.type) {
+      case 'view': activate(a.value); history.replaceState(null, '', '#' + a.value); break;
+      case 'lamp:on': if (!document.body.classList.contains('lamp-on')) { document.body.classList.add('lamp-on'); toast('lampu hangat dinyalakan'); } break;
+      case 'lamp:off': if (document.body.classList.contains('lamp-on')) { document.body.classList.remove('lamp-on'); toast('lampu dipadamkan'); } break;
+      case 'weather': toggleWeather(a.value); break;
+      case 'audio:play': if (!audio.playing) { audio.play(); syncPlayer(); } break;
+      case 'audio:pause': if (audio.playing) { audio.pause(); syncPlayer(); } break;
+      case 'timer:set':
+        timer.setDuration(Number(a.value));
+        $$('.preset-btn').forEach((b) => b.classList.toggle('active', Number(b.dataset.min) === Number(a.value)));
+        $('#btnStart').textContent = '▶ Mula';
+        break;
+      case 'timer:toggle': timer.toggle(); $('#btnStart').textContent = timer.running ? '⏸ Jeda' : '▶ Mula'; break;
+      case 'timer:pause': timer.pause(); $('#btnStart').textContent = '▶ Mula'; break;
+      case 'timer:start': timer.start(); $('#btnStart').textContent = '⏸ Jeda'; break;
+    }
+  });
+}
+
+function aiSend() {
+  const val = aiInput.value.trim();
+  if (!val) return;
+  aiSay('user', val);
+  aiInput.value = '';
+  const typing = aiAppend('bot', '<div class="ai-dot"><i></i><i></i><i></i></div>');
+  setTimeout(() => {
+    const res = assistant(val, buildAiCtx());
+    typing.remove();
+    aiAppend('bot', res.text.replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c])));
+    runAiActions(res.actions);
+  }, 420 + Math.random() * 380);
+}
+
+$('#aiForm').addEventListener('submit', (e) => { e.preventDefault(); aiSend(); });
+$('#aiChips').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-prompt]');
+  if (!b) return;
+  aiInput.value = b.dataset.prompt;
+  aiSend();
+});
+
 // ============ HOTSPOTS / ROOM ============
 const hotspotSpecs = [
   { id: 'lamp', msg: 'lampu katil dinyalakan', on: true },
@@ -309,6 +409,13 @@ function refreshHome() {
   $('#nowPlayingCard').textContent = audio.track.title;
   const mood = document.body.classList.contains('lamp-on') ? 'lampu hangat menyala' : 'bilik tenang';
   $('#moodLine').textContent = `${mood} • ${audio.playing ? 'musik sedang dipasang' : 'senyap seketika'} • masa untuk fokus.`;
+  // smart suggestion (on-device AI hint)
+  const items = todo.all();
+  let hint;
+  if (items.length === 0) hint = 'belum ada tugasan — taip yang pertama di To-Do, atau tanya pembantu AI untuk turunkan hujan';
+  else if (items.filter((i) => i.done).length === items.length) hint = 'semua tugasan siap! masa untuk rehat panjang 🏆';
+  else hint = `cuba fokus 25 minit pada "«${items[0].text}»" — tanya pembantu: "fokus 25 minit"`;
+  $('#aiHint').textContent = '💡 saran AI: ' + hint;
 }
 refreshHome();
 
@@ -336,3 +443,5 @@ renderTracks();
 syncPlayer();
 applyHash();
 timer._emit();
+aiAppend('bot', 'Hai amir! Aku pembantu kecil kamu di bilik ini. 🤖 Cuba: <em>"fokus 50 minit"</em>, <em>"mainkan muzik"</em>, <em>"hidupkan lampu"</em>, atau <em>"quote motivasi"</em>.');
+alignHotspots();
