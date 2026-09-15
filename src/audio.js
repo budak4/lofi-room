@@ -53,7 +53,7 @@ const TRACKS = [
     id: 'city-glow', title: 'city glow', artist: 'window seat',
     bpm: 66, shuffle: 0.2,
     progressions: [
-      [{ c: 'Cmaj7', k: 'maj7' }, { c: 'F', k: 'maj7' }, { c: 'Am', k: 'min7' }, { c: 'G', k: 'maj7' }],
+      [{ c: 'C', k: 'maj7' }, { c: 'F', k: 'maj7' }, { c: 'Am', k: 'min7' }, { c: 'G', k: 'maj7' }],
     ],
     eq: [0.8, 0.5, 0.6],
   },
@@ -175,6 +175,7 @@ export class LofiAudio {
     const chordProg = prog[bar % prog.length];
     const chordPos = Math.floor(step / 8) % chordProg.length;
     const ch = chordProg[chordPos];
+    const chNotes = chord(ch.c, ch.k);
 
     // kick on beats 0 and 4 (and sparse ghost)
     if (beat === 0 || beat === 4 || (beat === 7 && Math.random() < this.track.shuffle * 0.4)) {
@@ -185,10 +186,10 @@ export class LofiAudio {
       this._hat(t, beat % 2 === 1 ? 0.025 : 0.05);
     }
     // bass: root of chord on every beat except slight variation
-    if (beat % 2 === 0) this._bass(ch[0] - 12, t, beat === 0 ? 0.5 : 0.2);
+    if (beat % 2 === 0) this._bass(chNotes[0] + 36, t, beat === 0 ? 0.5 : 0.2);
     // soft keys: chord on bar start, arpeggio on odd beats
-    if (beat === 0) this._arp(ch, t, 'chord');
-    else if (beat % 2 === 1) this._arp(ch, t, 'single');
+    if (beat === 0) this._arp(chNotes, t, 'chord');
+    else if (beat % 2 === 1) this._arp(chNotes, t, 'single');
   }
 
   _env(gain, t, a, peak, d) {
@@ -238,7 +239,7 @@ export class LofiAudio {
       const delay = i * 0.02;
       const o = this.ctx.createOscillator();
       o.type = 'sine';
-      o.frequency.value = toFreq(n + 24);
+      o.frequency.value = toFreq(n + 48);
       o.detune.value = (Math.random() - 0.5) * 14;
       const f = this.ctx.createBiquadFilter();
       f.type = 'lowpass'; f.frequency.value = 2600;

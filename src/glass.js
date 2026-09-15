@@ -3,7 +3,7 @@
 // dock/topbar/minimini stay attached for the whole session.
 
 import { LiquidGlassEngine, LiquidButton } from 'quick-liquid';
-import { GLASS_QUALITY, HAS_BACKDROP, IS_TOUCH, REDUCED_MOTION } from './env.js';
+import { GLASS_QUALITY, HAS_BACKDROP, IS_TOUCH, REDUCED_MOTION, REDUCED_TRANSPARENCY } from './env.js';
 
 const PANEL_PLACEHOLDER = 'background:rgba(26,24,58,.86);';
 
