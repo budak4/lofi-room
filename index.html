@@ -11,8 +11,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;800&display=swap" rel="stylesheet" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%23a98bff'/%3E%3Ccircle cx='32' cy='32' r='24' fill='%231b1c45' stroke='%23fff' stroke-width='2'/%3E%3Ctext x='32' y='42' font-size='26' text-anchor='middle' fill='%23ffd08a'%3E%F0%9F%8D%85%3C/text%3E%3C/svg%3E" />
-  <script type="module" crossorigin src="./assets/index-4bPVB50d.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-HXwN4u4C.css">
+  <script type="module" crossorigin src="./assets/index-CF_a_JvC.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-C7vCeXa1.css">
 </head>
 <body class="weather-clear is-boot">
 
@@ -209,6 +209,15 @@
         <path d="M-4 14 Q0 26 6 12 Q8 22 12 10" fill="none" stroke="#3a3060" stroke-width="5" stroke-linecap="round"/>
       </g>
 
+      <!-- hotspot anchor markers: keep aligned with objects under preserveAspectRatio slice -->
+      <g fill="none" stroke="none" pointer-events="none">
+        <circle class="hotspot-marker" id="mk-moon" cx="1220" cy="210" r="4"/>
+        <circle class="hotspot-marker" id="mk-radio" cx="205" cy="515" r="4"/>
+        <circle class="hotspot-marker" id="mk-lamp" cx="1100" cy="552" r="4"/>
+        <circle class="hotspot-marker" id="mk-plant" cx="1345" cy="530" r="4"/>
+        <circle class="hotspot-marker" id="mk-cat" cx="930" cy="636" r="4"/>
+      </g>
+
       <!-- cushions -->
       <g fill="#5a4a86" opacity="0.65">
         <ellipse cx="700" cy="840" rx="150" ry="28"/>
@@ -270,6 +279,7 @@
         </div>
       </div>
       <div class="home-quote" id="quote">“little by little, one travels far.”</div>
+      <p class="ai-hint" id="aiHint">💡 saran AI: tanya pembantu untuk set jadual fokus</p>
     </section>
 
     <!-- POMODORO -->
@@ -334,6 +344,27 @@
       </div>
     </section>
 
+    <!-- AI ASSISTANT -->
+    <section class="glass panel ai" data-panel="ai">
+      <div class="panel-head">
+        <h2>✨ Pembantu AI</h2>
+        <span class="mini-note">on-device · privasi terjamin</span>
+      </div>
+      <div class="ai-chat" id="aiLog" role="log" aria-live="polite"></div>
+      <div class="ai-chips" id="aiChips">
+        <button data-prompt="Mula fokus 25 minit">🍅 fokus 25 min</button>
+        <button data-prompt="Quote motivasi">💬 quote</button>
+        <button data-prompt="Mainkan muzik">🎧 muzik</button>
+        <button data-prompt="Hidupkan lampu">💡 lampu</button>
+        <button data-prompt="Turunkan hujan">🌧 hujan</button>
+        <button data-prompt="Berapa tugasan saya?">📋 to-do</button>
+      </div>
+      <form class="ai-form" id="aiForm">
+        <input id="aiInput" placeholder="Tanya pembantu apa sahaja…" autocomplete="off" />
+        <button class="btn btn-primary" type="submit">➤</button>
+      </form>
+    </section>
+
     <!-- TODO -->
     <section class="glass panel todo" data-panel="todo">
       <div class="panel-head">
@@ -366,6 +397,7 @@
     <button class="dock-item" data-view="home">🏠<span>Home</span></button>
     <button class="dock-item" data-view="pomodoro">🍅<span>Fokus</span></button>
     <button class="dock-item" data-view="playlist">🎧<span>Playlist</span></button>
+    <button class="dock-item" data-view="ai">✨<span>AI</span></button>
     <button class="dock-item" data-view="todo">✔️<span>To-Do</span></button>
   </nav>
 
